@@ -1,3 +1,14 @@
+const express = require('express');
+const puppeteer = require('puppeteer');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Valorant Puppeteer API running' });
+});
+
 app.get('/valorant', async (req, res) => {
   const { username, tagline } = req.query;
 
@@ -8,33 +19,43 @@ app.get('/valorant', async (req, res) => {
   const riotID = encodeURIComponent(`${username}#${tagline}`);
   const url = `https://tracker.gg/valorant/profile/riot/${riotID}/overview`;
 
+  let browser;
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-      }
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    const stat = (label) =>
-      $(`.value__wrapper:has(.label:contains("${label}")) .value`).first().text().trim();
+    await page.waitForSelector('.score__description, .trn-defstat__value', { timeout: 15000 });
 
-    const kdr = stat("K/D Ratio");
-    const headshots = stat("Headshot %");
-    const winRate = stat("Win %");
-    const rank = $('.rating-entry__rank-info .value').first().text().trim();
+    const data = await page.evaluate(() => {
+      const getText = (selector) => {
+        const el = document.querySelector(selector);
+        return el ? el.innerText.trim() : null;
+      };
 
-    res.json({
-      kdr: kdr || null,
-      headshots: headshots || null,
-      winRate: winRate || null,
-      rank: rank || null
+      return {
+        trackerScore: getText('.score__description') || null,
+        kdr: getText('.trn-defstat__name:contains("K/D Ratio")')?.parentElement.querySelector('.trn-defstat__value')?.innerText || null,
+        headshots: getText('.trn-defstat__name:contains("Headshot %")')?.parentElement.querySelector('.trn-defstat__value')?.innerText || null,
+        winRate: getText('.trn-defstat__name:contains("Win %")')?.parentElement.querySelector('.trn-defstat__value')?.innerText || null,
+        rank: getText('.rating-entry__rank-info .value') || null,
+        matches: getText('.matches .value') || null
+      };
     });
-  } catch (err) {
-    console.error('Scrape error:', err.message);
-    res.status(500).json({ error: 'Failed to scrape profile', details: err.message });
+
+    res.json(data);
+  } catch (error) {
+    console.error('Puppeteer error:', error.message);
+    res.status(500).json({ error: 'Failed to scrape Tracker.gg', details: error.message });
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
+app.listen(5000, () => {
+  console.log('Server running on http://localhost:5000');
+});
