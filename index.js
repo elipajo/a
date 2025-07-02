@@ -5,7 +5,8 @@ const app = express();
 
 app.use(cors());
 
-const API_KEY = '3a6dffe6-7fce-4c37-a72e-31bf193dd589'; // Replace with your key
+const API_KEY = process.env.TRN_API_KEY;
+
 
 // Test endpoint
 app.get('/', (req, res) => {
