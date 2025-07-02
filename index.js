@@ -5,8 +5,7 @@ const app = express();
 
 app.use(cors());
 
-const API_KEY = process.env.TRN_API_KEY;
-
+const API_KEY = process.env.TRN_API_KEY; // Make sure this is set in Render's environment variables
 
 // Test endpoint
 app.get('/', (req, res) => {
@@ -28,18 +27,16 @@ app.get('/valorant', async (req, res) => {
   const url = `https://public-api.tracker.gg/v2/valorant/standard/profile/${region}/${riotID}`;
   
   console.log('Fetching URL:', url);
-  console.log('Riot ID:', riotID);
 
   try {
     const response = await fetch(url, {
       headers: {
-        'TRN-Api-Key': API_KEY
+        'TRN-Api-Key': API_KEY // ✅ Case-sensitive and correct
       }
     });
 
-    console.log('Response status:', response.status);
     const data = await response.json();
-    console.log('Response data:', JSON.stringify(data, null, 2));
+    console.log('Response:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return res.status(response.status).json({ error: data.errors || data.message || 'API request failed' });
@@ -67,3 +64,4 @@ app.get('/valorant', async (req, res) => {
 app.listen(5000, '0.0.0.0', () => {
   console.log('Server running on port 5000 and accessible at 0.0.0.0');
 });
+
