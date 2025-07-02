@@ -1,0 +1,68 @@
+const express = require('express');
+const fetch = require('node-fetch');
+const cors = require('cors');
+const app = express();
+
+app.use(cors());
+
+const API_KEY = '3a6dffe6-7fce-4c37-a72e-31bf193dd589'; // Replace with your key
+
+// Test endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'Valorant API is running', status: 'ok' });
+});
+
+app.get('/test', (req, res) => {
+  res.json({ message: 'Test endpoint working' });
+});
+
+app.get('/valorant', async (req, res) => {
+  const { username, tagline, region } = req.query;
+
+  if (!username || !tagline || !region) {
+    return res.status(400).json({ error: 'Missing query parameters' });
+  }
+
+  const riotID = encodeURIComponent(`${username}#${tagline}`);
+  const url = `https://public-api.tracker.gg/v2/valorant/standard/profile/${region}/${riotID}`;
+  
+  console.log('Fetching URL:', url);
+  console.log('Riot ID:', riotID);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'TRN-Api-Key': API_KEY
+      }
+    });
+
+    console.log('Response status:', response.status);
+    const data = await response.json();
+    console.log('Response data:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.errors || data.message || 'API request failed' });
+    }
+
+    if (!data.data || !data.data.segments || !data.data.segments[0]) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    const stats = data.data.segments[0].stats;
+    const rank = data.data.segments[0].metadata.rankName;
+
+    res.json({
+      kdr: stats.kdratio?.value || null,
+      headshots: stats.headshots?.value || null,
+      winRate: stats.winPercentage?.value || null,
+      rank: rank || null
+    });
+  } catch (err) {
+    console.error('Fetch error:', err.message);
+    res.status(500).json({ error: 'Internal error', details: err.message });
+  }
+});
+
+app.listen(5000, '0.0.0.0', () => {
+  console.log('Server running on port 5000 and accessible at 0.0.0.0');
+});
