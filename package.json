@@ -1,5 +1,5 @@
 {
-  "name": "valorant-scraper",
+  "name": "valorant-proxy",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "puppeteer": "^21.3.8"
+    "express": "^4.18.2",
+    "puppeteer": "^24.11.2"
   }
 }
