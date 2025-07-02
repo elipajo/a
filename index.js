@@ -1,63 +1,63 @@
 const express = require('express');
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const cors = require('cors');
 const app = express();
 
 app.use(cors());
 
-const API_KEY = process.env.TRN_API_KEY; // Make sure this is set in Render's environment variables
-
-// Test endpoint
+// Root test endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'Valorant API is running', status: 'ok' });
+  res.json({ message: 'Valorant API is running (scraper version)', status: 'ok' });
 });
 
+// Simple test endpoint
 app.get('/test', (req, res) => {
   res.json({ message: 'Test endpoint working' });
 });
 
+// Scrape Tracker.gg public profile
 app.get('/valorant', async (req, res) => {
-  const { username, tagline, region } = req.query;
+  const { username, tagline } = req.query;
 
-  if (!username || !tagline || !region) {
-    return res.status(400).json({ error: 'Missing query parameters' });
+  if (!username || !tagline) {
+    return res.status(400).json({ error: 'Missing username or tagline' });
   }
 
   const riotID = encodeURIComponent(`${username}#${tagline}`);
-  const url = `https://public-api.tracker.gg/v2/valorant/standard/profile/${region}/${riotID}`;
-  
-  console.log('Fetching URL:', url);
+  const url = `https://tracker.gg/valorant/profile/riot/${riotID}/overview`;
 
   try {
     const response = await fetch(url, {
       headers: {
-        'TRN-Api-Key': API_KEY // ✅ Case-sensitive and correct
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' // Simulate real browser
       }
     });
 
-    const data = await response.json();
-    console.log('Response:', JSON.stringify(data, null, 2));
+    const html = await response.text();
+    const $ = cheerio.load(html);
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data.errors || data.message || 'API request failed' });
-    }
+    // Try to extract key stats
+    const statBlock = $('.trn-defstat__name:contains("K/D Ratio")').closest('.trn-defstat');
+    const kd = statBlock.find('.trn-defstat__value').text().trim() || null;
 
-    if (!data.data || !data.data.segments || !data.data.segments[0]) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
+    const hsBlock = $('.trn-defstat__name:contains("Headshot %")').closest('.trn-defstat');
+    const headshots = hsBlock.find('.trn-defstat__value').text().trim() || null;
 
-    const stats = data.data.segments[0].stats;
-    const rank = data.data.segments[0].metadata.rankName;
+    const winBlock = $('.trn-defstat__name:contains("Win %")').closest('.trn-defstat');
+    const winRate = winBlock.find('.trn-defstat__value').text().trim() || null;
+
+    const rank = $('.rating-entry__rank-info span').first().text().trim() || null;
 
     res.json({
-      kdr: stats.kdratio?.value || null,
-      headshots: stats.headshots?.value || null,
-      winRate: stats.winPercentage?.value || null,
-      rank: rank || null
+      kdr: kd,
+      headshots: headshots,
+      winRate: winRate,
+      rank: rank
     });
   } catch (err) {
-    console.error('Fetch error:', err.message);
-    res.status(500).json({ error: 'Internal error', details: err.message });
+    console.error('Scrape error:', err.message);
+    res.status(500).json({ error: 'Failed to scrape profile', details: err.message });
   }
 });
 
