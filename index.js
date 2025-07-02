@@ -11,7 +11,7 @@ app.get('/valorant', async (req, res) => {
     return res.status(400).json({ error: 'Missing username or tagline' });
   }
 
-  // build the URL: spaces→%20, #→%23
+  // build RiotID: spaces→%20, #→%23
   const safeUser = username.replace(/ /g, '%20');
   const riotID   = `${safeUser}%23${tagline}`;
   const url      = `https://tracker.gg/valorant/profile/riot/${riotID}/overview`;
@@ -20,7 +20,6 @@ app.get('/valorant', async (req, res) => {
   try {
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.env.CHROME_PATH || '/usr/bin/chromium-browser',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -31,25 +30,22 @@ app.get('/valorant', async (req, res) => {
 
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-    // Wait for the Next.js data blob to appear
     await page.waitForSelector('#__NEXT_DATA__', { timeout: 15000 });
 
-    // Extract the embedded JSON
+    // Extract the Next.js data blob
     const nextData = await page.$eval(
       '#__NEXT_DATA__',
       el => JSON.parse(el.textContent)
     );
 
-    // Drill into the overview segment
     const segments = nextData.props.pageProps.apiResponse.data.segments;
     const overview = segments.find(seg => seg.type === 'overview');
     const s        = overview.stats;
     const m        = overview.metadata;
 
-    // Extract the seven fields
-    let name = m.rankName    || '';
-    let rr   = m.rankValue   || 0;
+    // Compute rank (upgrade Immortal >1000RR to Radiant)
+    let name = m.rankName  || '';
+    let rr   = m.rankValue || 0;
     if (name.toLowerCase().startsWith('immortal') && rr > 1000) {
       name = 'Radiant';
     }
